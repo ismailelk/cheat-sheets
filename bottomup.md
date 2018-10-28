@@ -26,7 +26,7 @@ ethernet adapter inschakelen `sudo dhclient`
     - /etc/sysconfig/network-scripts/ifcfg-eth1 'onboot' op yes plaatsen
     - check DHCP logs: `sudo journalctl -f`    
     - local configuration: `ip route`  
-    - DNS Server: /etc/resolv.conf 'nameserver' option present? correct ip.
+    - DNS Server: `/etc/resolv.conf` 'nameserver' option present? correct ip.
 
 2. Routing with the LAN
     - ping between host
@@ -118,10 +118,78 @@ Manuals
 
 ## Information
 
-TCP/IP
-|Layer| Protocols | Keywords
-|Application| HTTP, DNS, SMB,FTP| |
-|Transport | TCP, UDP | sockets, port numbers|
-|Internet | IP, ICMP | routing, IP address |
-|Network access | Ethernet | switch, MAC address |
-|Physical | |cables|
+TCP/IP  
+
+|Layer    |Protocols | Keywords|
+|-------|------------|--------|
+|Application| HTTP, DNS, SMB,FTP|   |  
+|Transport | TCP, UDP | sockets, port numbers|  
+|Internet | IP, ICMP | routing, IP address |  
+|Network access | Ethernet | switch, MAC address |  
+|Physical | |cables|  
+
+## Keyboard Settings
+
+Setting the systeminput to azerty:
+```
+sudo localectl set-keymap be
+sudo localectl set-x11-keymap be
+sudo loadkeys fr
+```
+
+# Report
+
+### Phase 1: Fysieke en Netwerktoegangslaag
+- Staan alle aparaten aan?
+- Bekabeling?
+In VirtualBox, go to the VM settings, Network, select the active interfaces, click “Advanced” and make sure the checkbox “Cable connected” is checked.
+- Adapters? Worden de verwachte soort netwerkadapters gebruikt?
+- controleer of de LINK UP is, dit met het commando `ip link`
+
+### Phase 2: Internetlaag
+ #### Netwerk instellingen
+ 1. De netwerkinterface heeft een IP? Default Gateway? DNS Server?
+ 2. IP address: statisch of DHCP? /etc/sysconfig/network-scripts/ifcfd-IFACE
+      - indien dynamisch "BOOTPROTO : dhcp"
+      - indien statisch "BOOTPROTO : none" , "IPADDR= 192.168.56.24", "NETMASK = 255.255.255.0"
+ 3. Check actual value? `ip a`
+ 4. check DW : `ip r`
+ 5. check DNS `cat /etc/resolve.conf`
+ 6. pingen van andere hosts in je lan bij Windows wordt ICMP verkeer soms geblokeerd met die commando kan je dit oplossen
+ `Get-NetFirewallRule -DisplayName "*Echo Request*" | Set-NetFirewallRule -enabled true`
+ 7. check DNS name resolution? `dig www.hogent.be +short` and `nslookup www.hogent.be`
+ 8. Query Specific DNS `dig www.hogent.be @8.8.8.8 +short` and `nslookup www.hogent.be 8.8.8.8`
+ 9. DNS if dig and nslookup are not avaiable  `getent ahosts www.google.com`
+
+### Phase 3: Transportlaag
+#### Service and port
+1. Check if the service is running (ex. nginx)   
+```
+sudo systemctl start nginx.service
+sudo systemctl enable nginx.service
+```
+2. What port is the service using?  
+`sudo ss -tlnp `  
+  (list TCP (-t) server (-l) port numbers (-n) with the process behind them (-p). The -p option requires root, hence the sudo)  
+  - Output is afhankelijk van wat je ingesteld hebt standaard http (80) en https (443).
+   Check `/etc/services` voor de precieze poort van je service
+  - Is de service ook aan het luisteren naar externe interfaces? Standaard staan de netwerkinstellingen van een service op luisteren naar loopback interface.
+
+#### Firewall setting
+1. Does the firewall allow traffico on the service?  
+  `sudo firewall-cmd --list-all`  
+2. Check if the service is listed?  
+  `firewall-cmd --get-services` (grep kan helpen indien het er veel zijn)
+### Phase 4: Applicatielaag
+1. Check the logs (maybe you can find an indication) put a tail on the file  
+    `journalctl` -> `sudo journalctl -f httpd.service`  
+    `sudo tail -f /cat/log/httpd/error_log`  
+2. Check config files  
+  `httpd: apachectl configtest`  
+  after making some changes -> `sudo systemctk restart httpd.service `
+3. Check availability  
+  - Do a port scan from another host on the lan  
+    `sudo nmap -sS -p 80,443 HOST`
+  - Use a test tool  
+    `wget http://HOST/ , wget https://HOST/`  
+    `curl http://HOST/ , curl https://HOST/`  
